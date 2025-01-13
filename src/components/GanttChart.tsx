@@ -227,75 +227,86 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
         </button>
       </div>
 
-      <div className="w-full overflow-x-auto">
-        <div style={{ width: `${totalWidth + 128}px` }}>
-          {/* Header with time units */}
-          <div className="flex border-b border-gray-200 mb-2">
-            <div className="w-32 flex-shrink-0 px-4 py-2 font-semibold">Stage</div>
-            <div className="flex-1">
-              <div className="flex">
-                {timeUnits.map((unit) => (
-                  <div
-                    key={unit.toISOString()}
-                    className="border-l border-gray-200 py-2 text-sm font-medium text-gray-600"
-                    style={{ width: COLUMN_WIDTH[zoomLevel] }}
-                  >
-                    {formatTimeUnitLabel(unit)}
-                  </div>
-                ))}
-              </div>
-            </div>
+      <div className="relative">
+        {/* Fixed Stage column */}
+        <div className="absolute left-0 top-0 w-32 bg-white z-10">
+          <div className="border-b border-gray-200 mb-2">
+            <div className="px-4 py-2 font-semibold">Stage</div>
           </div>
+          {Object.entries(groupedTasks).map(([id]) => (
+            <div key={id} className="px-4 py-2 text-sm h-8">
+              Stage {id}
+            </div>
+          ))}
+        </div>
 
-          {/* Tasks */}
-          {Object.entries(groupedTasks).map(([id, tasksInGroup]) => (
-            <div key={id} className="flex items-center mb-2">
-              <div className="w-32 flex-shrink-0 px-4 py-2 text-sm">
-                Stage {id}
-              </div>
-              <div className="flex-1 relative h-8">
-                {/* Grid lines */}
-                <div className="absolute inset-0 flex">
+        {/* Scrollable content */}
+        <div className="w-full overflow-x-auto">
+          <div style={{ width: `${totalWidth + 128}px`, marginLeft: '8rem' }}>
+            {/* Header with time units */}
+            <div className="flex border-b border-gray-200 mb-2">
+              <div className="flex-1">
+                <div className="flex">
                   {timeUnits.map((unit) => (
                     <div
                       key={unit.toISOString()}
-                      className="h-full border-l border-gray-200"
+                      className="border-l border-gray-200 py-2 text-sm font-medium text-gray-600"
                       style={{ width: COLUMN_WIDTH[zoomLevel] }}
-                    />
+                    >
+                      {formatTimeUnitLabel(unit)}
+                    </div>
                   ))}
                 </div>
-                
-                {/* Task bars */}
-                {tasksInGroup.map((task, index) => {
-                  const startPosition = getPositionPixels(task.startDate);
-                  const endPosition = getPositionPixels(task.endDate);
-                  const width = endPosition - startPosition;
-                  
-                  return (
-                    <div
-                      key={`${task.id}-${task.startDate}-${task.endDate}`}
-                      className="absolute h-6 top-1 rounded group"
-                      style={{
-                        left: startPosition,
-                        width: Math.max(width, 4), // Ensure minimum width for visibility
-                        backgroundColor: task.color,
-                        top: `${index * 8}px`,
-                      }}
-                    >
-                      <div className="relative">
-                        <span className="text-xs text-white px-2 truncate block leading-6">
-                          {task.name}
-                        </span>
-                        <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 left-0 -bottom-8 whitespace-nowrap z-10">
-                          {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
-          ))}
+
+            {/* Tasks */}
+            {Object.entries(groupedTasks).map(([id, tasksInGroup]) => (
+              <div key={id} className="flex items-center mb-2">
+                <div className="flex-1 relative h-8">
+                  {/* Grid lines */}
+                  <div className="absolute inset-0 flex">
+                    {timeUnits.map((unit) => (
+                      <div
+                        key={unit.toISOString()}
+                        className="h-full border-l border-gray-200"
+                        style={{ width: COLUMN_WIDTH[zoomLevel] }}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Task bars */}
+                  {tasksInGroup.map((task, index) => {
+                    const startPosition = getPositionPixels(task.startDate);
+                    const endPosition = getPositionPixels(task.endDate);
+                    const width = endPosition - startPosition;
+                    
+                    return (
+                      <div
+                        key={`${task.id}-${task.startDate}-${task.endDate}`}
+                        className="absolute h-6 top-1 rounded group"
+                        style={{
+                          left: startPosition,
+                          width: Math.max(width, 4), // Ensure minimum width for visibility
+                          backgroundColor: task.color,
+                          top: `${index * 8}px`,
+                        }}
+                      >
+                        <div className="relative">
+                          <span className="text-xs text-white px-2 truncate block leading-6">
+                            {task.name}
+                          </span>
+                          <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 left-0 -bottom-8 whitespace-nowrap z-10">
+                            {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
