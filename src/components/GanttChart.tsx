@@ -13,12 +13,14 @@ interface GanttChartProps {
   totalDays: number;
 }
 
-type ZoomLevel = 'day' | 'week' | 'month';
+type ZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 const COLUMN_WIDTH = {
-  day: 50,    // 50px per day
-  week: 200,  // 200px per week
-  month: 300  // 300px per month
+  day: 50,      // 50px per day
+  week: 200,    // 200px per week
+  month: 300,   // 300px per month
+  quarter: 400, // 400px per quarter
+  year: 600     // 600px per year
 };
 
 const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
@@ -32,29 +34,52 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   // Calculate total days for the chart
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
+  // Function to get quarter from date
+  const getQuarter = (date: Date) => {
+    return Math.floor(date.getMonth() / 3) + 1;
+  };
+
   // Function to generate time units based on zoom level
   const generateTimeUnits = () => {
     const units: Date[] = [];
     let currentDate = new Date(minDate);
     currentDate.setHours(0, 0, 0, 0);
 
-    if (zoomLevel === 'month') {
-      currentDate.setDate(1);
-      while (currentDate <= maxDate) {
-        units.push(new Date(currentDate));
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
-    } else if (zoomLevel === 'week') {
-      currentDate.setDate(currentDate.getDate() - currentDate.getDay()); // Start from Sunday
-      while (currentDate <= maxDate) {
-        units.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 7);
-      }
-    } else {
-      while (currentDate <= maxDate) {
-        units.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+    switch (zoomLevel) {
+      case 'year':
+        currentDate.setMonth(0, 1);
+        while (currentDate <= maxDate) {
+          units.push(new Date(currentDate));
+          currentDate.setFullYear(currentDate.getFullYear() + 1);
+        }
+        break;
+      case 'quarter':
+        currentDate.setMonth(Math.floor(currentDate.getMonth() / 3) * 3, 1);
+        while (currentDate <= maxDate) {
+          units.push(new Date(currentDate));
+          currentDate.setMonth(currentDate.getMonth() + 3);
+        }
+        break;
+      case 'month':
+        currentDate.setDate(1);
+        while (currentDate <= maxDate) {
+          units.push(new Date(currentDate));
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        break;
+      case 'week':
+        currentDate.setDate(currentDate.getDate() - currentDate.getDay());
+        while (currentDate <= maxDate) {
+          units.push(new Date(currentDate));
+          currentDate.setDate(currentDate.getDate() + 7);
+        }
+        break;
+      case 'day':
+        while (currentDate <= maxDate) {
+          units.push(new Date(currentDate));
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        break;
     }
 
     return units;
@@ -77,22 +102,45 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
     let position = 0;
     let currentDate = new Date(minDate);
 
-    if (zoomLevel === 'month') {
-      while (currentDate < taskDate) {
-        if (currentDate.getMonth() === taskDate.getMonth() && currentDate.getFullYear() === taskDate.getFullYear()) {
-          position += (taskDate.getDate() / new Date(taskDate.getFullYear(), taskDate.getMonth() + 1, 0).getDate()) * COLUMN_WIDTH.month;
-          break;
+    switch (zoomLevel) {
+      case 'year':
+        const yearDiff = taskDate.getFullYear() - currentDate.getFullYear();
+        const yearProgress = (taskDate.getTime() - new Date(taskDate.getFullYear(), 0, 1).getTime()) / 
+                           (new Date(taskDate.getFullYear() + 1, 0, 1).getTime() - new Date(taskDate.getFullYear(), 0, 1).getTime());
+        position = yearDiff * COLUMN_WIDTH.year + yearProgress * COLUMN_WIDTH.year;
+        break;
+      case 'quarter':
+        while (currentDate < taskDate) {
+          if (getQuarter(currentDate) === getQuarter(taskDate) && currentDate.getFullYear() === taskDate.getFullYear()) {
+            const quarterStart = new Date(currentDate.getFullYear(), Math.floor(currentDate.getMonth() / 3) * 3, 1);
+            const quarterEnd = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 3, 0);
+            const progressInQuarter = (taskDate.getTime() - quarterStart.getTime()) / (quarterEnd.getTime() - quarterStart.getTime());
+            position += progressInQuarter * COLUMN_WIDTH.quarter;
+            break;
+          }
+          position += COLUMN_WIDTH.quarter;
+          currentDate.setMonth(currentDate.getMonth() + 3);
         }
-        position += COLUMN_WIDTH.month;
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
-    } else if (zoomLevel === 'week') {
-      const daysDiff = Math.floor((taskDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-      position = Math.floor(daysDiff / 7) * COLUMN_WIDTH.week;
-      position += (daysDiff % 7) * (COLUMN_WIDTH.week / 7);
-    } else {
-      const daysDiff = Math.floor((taskDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
-      position = daysDiff * COLUMN_WIDTH.day;
+        break;
+      case 'month':
+        while (currentDate < taskDate) {
+          if (currentDate.getMonth() === taskDate.getMonth() && currentDate.getFullYear() === taskDate.getFullYear()) {
+            position += (taskDate.getDate() / new Date(taskDate.getFullYear(), taskDate.getMonth() + 1, 0).getDate()) * COLUMN_WIDTH.month;
+            break;
+          }
+          position += COLUMN_WIDTH.month;
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+        break;
+      case 'week':
+        const daysDiff = Math.floor((taskDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+        position = Math.floor(daysDiff / 7) * COLUMN_WIDTH.week;
+        position += (daysDiff % 7) * (COLUMN_WIDTH.week / 7);
+        break;
+      case 'day':
+        const days = Math.floor((taskDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+        position = days * COLUMN_WIDTH.day;
+        break;
     }
 
     return position;
@@ -101,6 +149,10 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   // Function to format time unit label
   const formatTimeUnitLabel = (date: Date) => {
     switch (zoomLevel) {
+      case 'year':
+        return date.getFullYear().toString();
+      case 'quarter':
+        return `Q${getQuarter(date)} ${date.getFullYear()}`;
       case 'month':
         return date.toLocaleString('default', { month: 'short', year: '2-digit' });
       case 'week':
@@ -114,16 +166,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
 
   // Calculate total width of the chart
   const getTotalWidth = () => {
-    switch (zoomLevel) {
-      case 'month':
-        return timeUnits.length * COLUMN_WIDTH.month;
-      case 'week':
-        return timeUnits.length * COLUMN_WIDTH.week;
-      case 'day':
-        return timeUnits.length * COLUMN_WIDTH.day;
-      default:
-        return 0;
-    }
+    return timeUnits.length * COLUMN_WIDTH[zoomLevel];
   };
 
   const totalWidth = getTotalWidth();
@@ -161,6 +204,26 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
           }`}
         >
           Month
+        </button>
+        <button
+          onClick={() => setZoomLevel('quarter')}
+          className={`px-4 py-2 rounded ${
+            zoomLevel === 'quarter'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 hover:bg-gray-300'
+          }`}
+        >
+          Quarter
+        </button>
+        <button
+          onClick={() => setZoomLevel('year')}
+          className={`px-4 py-2 rounded ${
+            zoomLevel === 'year'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 hover:bg-gray-300'
+          }`}
+        >
+          Year
         </button>
       </div>
 
@@ -214,7 +277,7 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                       className="absolute h-6 top-1 rounded group"
                       style={{
                         left: startPosition,
-                        width: width,
+                        width: Math.max(width, 4), // Ensure minimum width for visibility
                         backgroundColor: task.color,
                         top: `${index * 8}px`,
                       }}
