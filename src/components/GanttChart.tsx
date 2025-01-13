@@ -6,6 +6,7 @@ interface Task {
   startDate: string;
   endDate: string;
   color: string;
+  children?: Task[];
 }
 
 interface GanttChartProps {
@@ -25,9 +26,36 @@ const COLUMN_WIDTH = {
 
 const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set(tasks.map(t => t.id)));
+
+  // Function to toggle task expansion
+  const toggleTask = (taskId: number) => {
+    setExpandedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  // Flatten tasks for display while maintaining hierarchy information
+  const flattenTasks = (tasks: Task[], level = 0, parentId?: number): { task: Task; level: number; parentId?: number }[] => {
+    return tasks.flatMap(task => {
+      const result = [{ task, level, parentId }];
+      if (task.children && task.children.length > 0 && expandedTasks.has(task.id)) {
+        result.push(...flattenTasks(task.children, level + 1, task.id));
+      }
+      return result;
+    });
+  };
+
+  const flattenedTasks = flattenTasks(tasks);
 
   // Find the earliest and latest dates
-  const dates = tasks.flatMap(task => [new Date(task.startDate), new Date(task.endDate)]);
+  const dates = flattenedTasks.flatMap(({ task }) => [new Date(task.startDate), new Date(task.endDate)]);
   const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
   const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
@@ -86,15 +114,6 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   };
 
   const timeUnits = generateTimeUnits();
-
-  // Group tasks by ID
-  const groupedTasks = tasks.reduce((acc, task) => {
-    if (!acc[task.id]) {
-      acc[task.id] = [];
-    }
-    acc[task.id].push(task);
-    return acc;
-  }, {} as Record<number, Task[]>);
 
   // Function to calculate position in pixels
   const getPositionPixels = (date: string) => {
@@ -229,20 +248,28 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
 
       <div className="relative">
         {/* Fixed Stage column */}
-        <div className="absolute left-0 top-0 w-32 bg-white z-10">
+        <div className="absolute left-0 top-0 w-48 bg-white z-10">
           <div className="border-b border-gray-200 mb-2">
-            <div className="px-4 py-2 font-semibold">Stage</div>
+            <div className="px-4 py-2 font-semibold">Task</div>
           </div>
-          {Object.entries(groupedTasks).map(([id]) => (
-            <div key={id} className="px-4 py-2 text-sm h-8">
-              Stage {id}
+          {flattenedTasks.map(({ task, level }) => (
+            <div
+              key={task.id}
+              className="px-4 py-2 text-sm h-8 flex items-center hover:bg-gray-50 cursor-pointer"
+              style={{ paddingLeft: `${level * 20 + 16}px` }}
+              onClick={() => task.children?.length && toggleTask(task.id)}
+            >
+              {task.children && task.children.length > 0 && (
+                <span className="mr-2">{expandedTasks.has(task.id) ? '▼' : '▶'}</span>
+              )}
+              {task.name}
             </div>
           ))}
         </div>
 
         {/* Scrollable content */}
         <div className="w-full overflow-x-auto">
-          <div style={{ width: `${totalWidth + 128}px`, marginLeft: '8rem' }}>
+          <div style={{ width: `${totalWidth + 128}px`, marginLeft: '12rem' }}>
             {/* Header with time units */}
             <div className="flex border-b border-gray-200 mb-2">
               <div className="flex-1">
@@ -261,8 +288,8 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
             </div>
 
             {/* Tasks */}
-            {Object.entries(groupedTasks).map(([id, tasksInGroup]) => (
-              <div key={id} className="flex items-center mb-2">
+            {flattenedTasks.map(({ task }, index) => (
+              <div key={task.id} className="flex items-center mb-2">
                 <div className="flex-1 relative h-8">
                   {/* Grid lines */}
                   <div className="absolute inset-0 flex">
@@ -275,34 +302,24 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
                     ))}
                   </div>
                   
-                  {/* Task bars */}
-                  {tasksInGroup.map((task, index) => {
-                    const startPosition = getPositionPixels(task.startDate);
-                    const endPosition = getPositionPixels(task.endDate);
-                    const width = endPosition - startPosition;
-                    
-                    return (
-                      <div
-                        key={`${task.id}-${task.startDate}-${task.endDate}`}
-                        className="absolute h-6 top-1 rounded group"
-                        style={{
-                          left: startPosition,
-                          width: Math.max(width, 4), // Ensure minimum width for visibility
-                          backgroundColor: task.color,
-                          top: `${index * 8}px`,
-                        }}
-                      >
-                        <div className="relative">
-                          <span className="text-xs text-white px-2 truncate block leading-6">
-                            {task.name}
-                          </span>
-                          <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 left-0 -bottom-8 whitespace-nowrap z-10">
-                            {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
-                          </div>
-                        </div>
+                  {/* Task bar */}
+                  <div
+                    className="absolute h-6 top-1 rounded group"
+                    style={{
+                      left: getPositionPixels(task.startDate),
+                      width: Math.max(getPositionPixels(task.endDate) - getPositionPixels(task.startDate), 4),
+                      backgroundColor: task.color,
+                    }}
+                  >
+                    <div className="relative">
+                      <span className="text-xs text-white px-2 truncate block leading-6">
+                        {task.name}
+                      </span>
+                      <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1 left-0 -bottom-8 whitespace-nowrap z-10">
+                        {new Date(task.startDate).toLocaleDateString()} - {new Date(task.endDate).toLocaleDateString()}
                       </div>
-                    );
-                  })}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
